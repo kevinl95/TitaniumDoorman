@@ -1,0 +1,169 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Hardware-less Video Doorbell — TiDB AgentX Hackathon Stack
+
+Parameters:
+  TiDBEndpoint:
+    Type: String
+    Description: "TiDB Serverless endpoint (e.g., tidb.xxx.tidbcloud.com:4000)"
+  TiDBUsername:
+    Type: String
+    Description: "TiDB username (e.g., root)"
+  TiDBPassword:
+    Type: String
+    NoEcho: true
+    Description: "TiDB password"
+  NotificationEmail:
+    Type: String
+    Description: "Resident email address for notifications"
+
+Resources:
+  ### Secrets Manager ###
+  TiDBSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: doorbell-tidb-credentials
+      Description: "TiDB credentials for the Hardware-less Video Doorbell agent"
+      SecretString:
+        !Sub |
+          {
+            "endpoint": "${TiDBEndpoint}",
+            "username": "${TiDBUsername}",
+            "password": "${TiDBPassword}"
+          }
+
+  ### SNS Topic for notifications ###
+  DoorbellTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: "DoorbellNotifications"
+
+  DoorbellTopicSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref DoorbellTopic
+      Protocol: email
+      Endpoint: !Ref NotificationEmail
+
+  ### IAM Role for Lambdas ###
+  DoorbellLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DoorbellLambdaPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref TiDBSecret
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref DoorbellTopic
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource: "*"   # scope down to specific Bedrock model ARNs if possible
+
+  ### Lambdas ###
+  SessionInitLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: doorbell-session-init
+      Handler: index.handler
+      Runtime: python3.11
+      Timeout: 10
+      Role: !GetAtt DoorbellLambdaRole.Arn
+      Code:
+        ZipFile: |
+          import json
+          def handler(event, context):
+              return {
+                  "statusCode": 200,
+                  "body": json.dumps({"message": "Session created"})
+              }
+
+  AgentOrchestratorLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: doorbell-agent-orchestrator
+      Handler: index.handler
+      Runtime: python3.11
+      Timeout: 30
+      Role: !GetAtt DoorbellLambdaRole.Arn
+      Code:
+        ZipFile: |
+          import json
+          def handler(event, context):
+              # placeholder logic for demo
+              return {
+                  "statusCode": 200,
+                  "body": json.dumps({"action": "NotifyResident"})
+              }
+
+  ### API Gateway ###
+  DoorbellApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: DoorbellAPI
+      EndpointConfiguration:
+        Types: [REGIONAL]
+
+  DoorbellApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref DoorbellApi
+      ParentId: !GetAtt DoorbellApi.RootResourceId
+      PathPart: "doorbell"
+
+  DoorbellApiMethodSession:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref DoorbellApi
+      ResourceId: !Ref DoorbellApiResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub
+          arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SessionInitLambda.Arn}/invocations
+
+  DoorbellApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn: DoorbellApiMethodSession
+    Properties:
+      RestApiId: !Ref DoorbellApi
+      StageName: prod
+
+  ### Lambda Permissions for API Gateway ###
+  SessionInitLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref SessionInitLambda
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${DoorbellApi}/*/POST/doorbell"
+
+Outputs:
+  ApiInvokeUrl:
+    Description: "Base URL for Doorbell API"
+    Value: !Sub "https://${DoorbellApi}.execute-api.${AWS::Region}.amazonaws.com/prod/doorbell"
+
+  SnsTopicArn:
+    Description: "SNS Topic for notifications"
+    Value: !Ref DoorbellTopic
+
+  TiDBSecretArn:
+    Description: "ARN of the TiDB credentials secret"
+    Value: !Ref TiDBSecret
