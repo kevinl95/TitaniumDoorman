@@ -4,7 +4,7 @@ Description: Hardware-less Video Doorbell — TiDB AgentX Hackathon Stack
 Parameters:
   TiDBEndpoint:
     Type: String
-    Description: "TiDB Serverless endpoint (e.g., tidb.xxx.tidbcloud.com:4000)"
+    Description: "TiDB Serverless endpoint (e.g., gateway01.us-west-2.prod.aws.tidbcloud.com:4000)"
   TiDBUsername:
     Type: String
     Description: "TiDB username (e.g., root)"
@@ -17,6 +17,173 @@ Parameters:
     Description: "Resident email address for notifications"
 
 Resources:
+  ### S3 Static Website ###
+  VisitorWebsiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "titanium-doorman-${AWS::AccountId}-${AWS::Region}"
+      WebsiteConfiguration:
+        IndexDocument: index.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+
+  VisitorWebsiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref VisitorWebsiteBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action: s3:GetObject
+            Resource: !Sub "${VisitorWebsiteBucket}/*"
+
+  WebsiteDeployerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub '${VisitorWebsiteBucket}/*'
+
+  WebsiteDeployerLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: doorbell-website-deployer
+      Handler: index.handler
+      Runtime: python3.11
+      Timeout: 60
+      Role: !GetAtt WebsiteDeployerRole.Arn
+      Code:
+        ZipFile: !Sub |
+          import boto3
+          import cfnresponse
+          
+          def handler(event, context):
+              try:
+                  s3 = boto3.client('s3')
+                  bucket = event['ResourceProperties']['Bucket']
+                  api_url = event['ResourceProperties']['ApiUrl']
+                  
+                  html_content = f'''<!DOCTYPE html>
+          <html>
+          <head>
+              <title>🚪 Virtual Doorman</title>
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <style>
+                  body {{ font-family: Arial, sans-serif; max-width: 400px; margin: 50px auto; padding: 20px; background: #f5f5f5; }}
+                  .container {{ background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+                  .chat {{ border: 1px solid #ddd; height: 300px; overflow-y: auto; padding: 10px; margin: 10px 0; background: #fafafa; border-radius: 5px; }}
+                  .message {{ margin: 10px 0; padding: 8px; border-radius: 5px; }}
+                  .user {{ background: #e3f2fd; text-align: right; }}
+                  .agent {{ background: #f5f5f5; }}
+                  input, button {{ width: 100%; padding: 10px; margin: 5px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }}
+                  button {{ background: #2196f3; color: white; border: none; cursor: pointer; }}
+                  button:hover {{ background: #1976d2; }}
+                  .header {{ text-align: center; margin-bottom: 20px; }}
+              </style>
+          </head>
+          <body>
+              <div class="container">
+                  <div class="header">
+                      <h2>🚪 Virtual Doorman</h2>
+                      <p>Hello! I'm the virtual doorman. How can I help you today?</p>
+                  </div>
+                  <div id="chat" class="chat"></div>
+                  <input type="text" id="nameInput" placeholder="Your name (optional)" />
+                  <input type="text" id="messageInput" placeholder="Type your message..." />
+                  <button onclick="sendMessage()">Send Message</button>
+              </div>
+              <script>
+                  const API_URL = '{api_url}';
+                  let sessionToken = null;
+                  async function initSession() {{
+                      try {{
+                          const response = await fetch(API_URL + '/doorbell', {{
+                              method: 'POST',
+                              headers: {{'Content-Type': 'application/json'}},
+                              body: JSON.stringify({{visitor_name: document.getElementById('nameInput').value || 'Anonymous'}})
+                          }});
+                          const data = await response.json();
+                          sessionToken = data.session_token;
+                      }} catch (error) {{
+                          console.error('Session init failed:', error);
+                      }}
+                  }}
+                  async function sendMessage() {{
+                      const messageInput = document.getElementById('messageInput');
+                      const message = messageInput.value.trim();
+                      if (!message) return;
+                      if (!sessionToken) await initSession();
+                      addMessage(message, 'user');
+                      messageInput.value = '';
+                      try {{
+                          const response = await fetch(API_URL + '/agent', {{
+                              method: 'POST',
+                              headers: {{'Content-Type': 'application/json'}},
+                              body: JSON.stringify({{session_token: sessionToken, message: message}})
+                          }});
+                          const data = await response.json();
+                          addMessage(data.response, 'agent');
+                      }} catch (error) {{
+                          addMessage('Sorry, I encountered an error. Please try again.', 'agent');
+                      }}
+                  }}
+                  function addMessage(text, sender) {{
+                      const chat = document.getElementById('chat');
+                      const div = document.createElement('div');
+                      div.className = `message ${{sender}}`;
+                      div.textContent = text;
+                      chat.appendChild(div);
+                      chat.scrollTop = chat.scrollHeight;
+                  }}
+                  document.getElementById('messageInput').addEventListener('keypress', function(e) {{
+                      if (e.key === 'Enter') sendMessage();
+                  }});
+              </script>
+          </body>
+          </html>'''
+                  
+                  if event['RequestType'] == 'Delete':
+                      s3.delete_object(Bucket=bucket, Key='index.html')
+                  else:
+                      s3.put_object(
+                          Bucket=bucket,
+                          Key='index.html',
+                          Body=html_content,
+                          ContentType='text/html'
+                      )
+                  
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {{}})
+              except Exception as e:
+                  print(f'Error: {{e}}')
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {{}})
+
+  DeployWebsite:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: !GetAtt WebsiteDeployerLambda.Arn
+      Bucket: !Ref VisitorWebsiteBucket
+      ApiUrl: !Sub 'https://${DoorbellApi}.execute-api.${AWS::Region}.amazonaws.com/prod'
+
   ### Secrets Manager ###
   TiDBSecret:
     Type: AWS::SecretsManager::Secret
@@ -75,6 +242,8 @@ Resources:
                   - bedrock:InvokeModel
                 Resource: "*"   # scope down to specific Bedrock model ARNs if possible
 
+
+
   ### Lambdas ###
   SessionInitLambda:
     Type: AWS::Lambda::Function
@@ -84,14 +253,48 @@ Resources:
       Runtime: python3.11
       Timeout: 10
       Role: !GetAtt DoorbellLambdaRole.Arn
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !Ref DoorbellTopic
       Code:
         ZipFile: |
           import json
+          import boto3
+          import uuid
+          from datetime import datetime
+          import os
+          
           def handler(event, context):
-              return {
-                  "statusCode": 200,
-                  "body": json.dumps({"message": "Session created"})
-              }
+              try:
+                  body = json.loads(event['body']) if event.get('body') else {}
+                  visitor_name = body.get('visitor_name', 'Anonymous')
+                  session_token = str(uuid.uuid4())
+                  
+                  # Store session in memory for demo (use TiDB in production)
+                  print(f"Session created: {session_token} for {visitor_name}")
+                  
+                  return {
+                      'statusCode': 200,
+                      'headers': {
+                          'Content-Type': 'application/json',
+                          'Access-Control-Allow-Origin': '*',
+                          'Access-Control-Allow-Headers': 'Content-Type',
+                          'Access-Control-Allow-Methods': 'POST, OPTIONS'
+                      },
+                      'body': json.dumps({
+                          'session_token': session_token,
+                          'message': 'Session created successfully'
+                      })
+                  }
+              except Exception as e:
+                  return {
+                      'statusCode': 500,
+                      'headers': {
+                          'Content-Type': 'application/json',
+                          'Access-Control-Allow-Origin': '*'
+                      },
+                      'body': json.dumps({'error': str(e)})
+                  }
 
   AgentOrchestratorLambda:
     Type: AWS::Lambda::Function
@@ -101,15 +304,78 @@ Resources:
       Runtime: python3.11
       Timeout: 30
       Role: !GetAtt DoorbellLambdaRole.Arn
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !Ref DoorbellTopic
       Code:
         ZipFile: |
           import json
+          import boto3
+          import os
+          
+          def classify_visitor_intent(message):
+              message_lower = message.lower()
+              if any(word in message_lower for word in ['delivery', 'package', 'mail', 'fedex', 'ups', 'amazon']):
+                  return 'delivery'
+              elif any(word in message_lower for word in ['friend', 'visit', 'here', 'social', 'invited']):
+                  return 'friend'
+              elif any(word in message_lower for word in ['sell', 'offer', 'deal', 'sales', 'marketing']):
+                  return 'solicitor'
+              elif any(word in message_lower for word in ['repair', 'service', 'maintenance', 'technician']):
+                  return 'service'
+              elif any(word in message_lower for word in ['emergency', 'urgent', 'help', 'police', 'fire']):
+                  return 'emergency'
+              return 'unknown'
+          
           def handler(event, context):
-              # placeholder logic for demo
-              return {
-                  "statusCode": 200,
-                  "body": json.dumps({"action": "NotifyResident"})
-              }
+              try:
+                  body = json.loads(event['body'])
+                  session_token = body['session_token']
+                  message = body['message']
+                  
+                  intent = classify_visitor_intent(message)
+                  
+                  # Send SNS notification
+                  sns = boto3.client('sns')
+                  topic_arn = os.environ['SNS_TOPIC_ARN']
+                  
+                  sns.publish(
+                      TopicArn=topic_arn,
+                      Subject=f"🚪 Doorbell Visit - {intent.title()}",
+                      Message=f"Visitor Message: {message}\n\nClassified as: {intent.upper()}\nSession ID: {session_token}\n\nTime: {boto3.Session().region_name}"
+                  )
+                  
+                  responses = {
+                      'delivery': "I'll let the resident know about your delivery. Please wait a moment while I notify them.",
+                      'friend': "I'll notify the resident that you're here. Please wait while I get them.",
+                      'solicitor': "Thank you for visiting. The resident is not available for solicitations at this time.",
+                      'service': "I'll inform the resident about your service visit. Please wait a moment.",
+                      'emergency': "This appears urgent. I'm notifying the resident immediately!",
+                      'unknown': "Thank you for your message. I'm notifying the resident now."
+                  }
+                  
+                  return {
+                      'statusCode': 200,
+                      'headers': {
+                          'Content-Type': 'application/json',
+                          'Access-Control-Allow-Origin': '*',
+                          'Access-Control-Allow-Headers': 'Content-Type',
+                          'Access-Control-Allow-Methods': 'POST, OPTIONS'
+                      },
+                      'body': json.dumps({
+                          'response': responses.get(intent, responses['unknown']),
+                          'intent': intent
+                      })
+                  }
+              except Exception as e:
+                  return {
+                      'statusCode': 500,
+                      'headers': {
+                          'Content-Type': 'application/json',
+                          'Access-Control-Allow-Origin': '*'
+                      },
+                      'body': json.dumps({'error': str(e)})
+                  }
 
   ### API Gateway ###
   DoorbellApi:
@@ -119,6 +385,7 @@ Resources:
       EndpointConfiguration:
         Types: [REGIONAL]
 
+  # Doorbell endpoint
   DoorbellApiResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -139,9 +406,82 @@ Resources:
         Uri: !Sub
           arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SessionInitLambda.Arn}/invocations
 
+  DoorbellApiMethodOptions:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref DoorbellApi
+      ResourceId: !Ref DoorbellApiResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # Agent endpoint
+  AgentApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref DoorbellApi
+      ParentId: !GetAtt DoorbellApi.RootResourceId
+      PathPart: "agent"
+
+  AgentApiMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref DoorbellApi
+      ResourceId: !Ref AgentApiResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub
+          arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AgentOrchestratorLambda.Arn}/invocations
+
+  AgentApiMethodOptions:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref DoorbellApi
+      ResourceId: !Ref AgentApiResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
   DoorbellApiDeployment:
     Type: AWS::ApiGateway::Deployment
-    DependsOn: DoorbellApiMethodSession
+    DependsOn: 
+      - DoorbellApiMethodSession
+      - DoorbellApiMethodOptions
+      - AgentApiMethod
+      - AgentApiMethodOptions
     Properties:
       RestApiId: !Ref DoorbellApi
       StageName: prod
@@ -155,10 +495,22 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${DoorbellApi}/*/POST/doorbell"
 
+  AgentOrchestratorLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref AgentOrchestratorLambda
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${DoorbellApi}/*/POST/agent"
+
 Outputs:
+  VisitorWebsiteUrl:
+    Description: "Visitor website URL - use this for QR code"
+    Value: !Sub "http://${VisitorWebsiteBucket}.s3-website-${AWS::Region}.amazonaws.com"
+
   ApiInvokeUrl:
     Description: "Base URL for Doorbell API"
-    Value: !Sub "https://${DoorbellApi}.execute-api.${AWS::Region}.amazonaws.com/prod/doorbell"
+    Value: !Sub "https://${DoorbellApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
 
   SnsTopicArn:
     Description: "SNS Topic for notifications"
