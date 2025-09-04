@@ -73,7 +73,7 @@ Resources:
       Timeout: 60
       Role: !GetAtt WebsiteDeployerRole.Arn
       Code:
-        ZipFile: !Sub |
+        ZipFile: |
           import boto3
           import cfnresponse
           import base64
