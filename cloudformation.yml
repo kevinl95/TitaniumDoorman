@@ -185,7 +185,7 @@ Resources:
           <html>
           <head><title>QR Code for Doorbell</title></head>
           <body style="text-align:center; font-family:Arial;">
-              <h2>🚪 Titanium Doorman QR Code</h2>
+              <h2>Titanium Doorman QR Code</h2>
               <p>Scan this QR code or visit: <a href="{website_url}">{website_url}</a></p>
               <div id="qr"></div>
               <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
@@ -273,7 +273,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - bedrock:InvokeModel
-                Resource: "*"   # scope down to specific Bedrock model ARNs if possible
+                Resource: !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan-text-express-v1"
 
 
 
@@ -284,26 +284,81 @@ Resources:
       FunctionName: doorbell-session-init
       Handler: index.handler
       Runtime: python3.11
-      Timeout: 10
+      Timeout: 30
       Role: !GetAtt DoorbellLambdaRole.Arn
       Environment:
         Variables:
           SNS_TOPIC_ARN: !Ref DoorbellTopic
+          TIDB_SECRET_ARN: !Ref TiDBSecret
+      Layers:
+        - arn:aws:lambda:us-east-1:770693421928:layer:Klayers-p311-pymysql:3
       Code:
         ZipFile: |
           import json
           import boto3
           import uuid
-          from datetime import datetime
+          import pymysql
           import os
+          
+          def get_tidb_connection():
+              secrets_client = boto3.client('secretsmanager')
+              secret = secrets_client.get_secret_value(SecretId=os.environ['TIDB_SECRET_ARN'])
+              creds = json.loads(secret['SecretString'])
+              
+              return pymysql.connect(
+                  host=creds['endpoint'].split(':')[0],
+                  port=int(creds['endpoint'].split(':')[1]),
+                  user=creds['username'],
+                  password=creds['password'],
+                  database='test',
+                  autocommit=True
+              )
+          
+          def init_schema(conn):
+              with conn.cursor() as cursor:
+                  cursor.execute("""
+                      CREATE TABLE IF NOT EXISTS visitors (
+                          visitor_id VARCHAR(36) PRIMARY KEY,
+                          canonical_name VARCHAR(255),
+                          phone VARCHAR(50),
+                          email VARCHAR(255),
+                          metadata JSON,
+                          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                      )
+                  """)
+                  
+                  cursor.execute("""
+                      CREATE TABLE IF NOT EXISTS visits (
+                          visit_id VARCHAR(36) PRIMARY KEY,
+                          visitor_id VARCHAR(36),
+                          session_token VARCHAR(36) UNIQUE,
+                          visitor_name VARCHAR(255),
+                          message TEXT,
+                          intent VARCHAR(50),
+                          response TEXT,
+                          status VARCHAR(20) DEFAULT 'active',
+                          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                      )
+                  """)
           
           def handler(event, context):
               try:
                   body = json.loads(event['body']) if event.get('body') else {}
                   visitor_name = body.get('visitor_name', 'Anonymous')
                   session_token = str(uuid.uuid4())
+                  visit_id = str(uuid.uuid4())
                   
-                  # Store session in memory for demo (use TiDB in production)
+                  conn = get_tidb_connection()
+                  init_schema(conn)
+                  
+                  with conn.cursor() as cursor:
+                      cursor.execute(
+                          "INSERT INTO visits (visit_id, session_token, visitor_name, status) VALUES (%s, %s, %s, %s)",
+                          (visit_id, session_token, visitor_name, 'initiated')
+                      )
+                  
+                  conn.close()
                   print(f"Session created: {session_token} for {visitor_name}")
                   
                   return {
@@ -320,6 +375,7 @@ Resources:
                       })
                   }
               except Exception as e:
+                  print(f"Error: {str(e)}")
                   return {
                       'statusCode': 500,
                       'headers': {
@@ -335,30 +391,114 @@ Resources:
       FunctionName: doorbell-agent-orchestrator
       Handler: index.handler
       Runtime: python3.11
-      Timeout: 30
+      Timeout: 60
       Role: !GetAtt DoorbellLambdaRole.Arn
       Environment:
         Variables:
           SNS_TOPIC_ARN: !Ref DoorbellTopic
+          TIDB_SECRET_ARN: !Ref TiDBSecret
+      Layers:
+        - arn:aws:lambda:us-east-1:770693421928:layer:Klayers-p311-pymysql:3
       Code:
         ZipFile: |
           import json
           import boto3
+          import pymysql
           import os
+          from datetime import datetime, timedelta
           
-          def classify_visitor_intent(message):
-              message_lower = message.lower()
-              if any(word in message_lower for word in ['delivery', 'package', 'mail', 'fedex', 'ups', 'amazon']):
-                  return 'delivery'
-              elif any(word in message_lower for word in ['friend', 'visit', 'here', 'social', 'invited']):
-                  return 'friend'
-              elif any(word in message_lower for word in ['sell', 'offer', 'deal', 'sales', 'marketing']):
-                  return 'solicitor'
-              elif any(word in message_lower for word in ['repair', 'service', 'maintenance', 'technician']):
-                  return 'service'
-              elif any(word in message_lower for word in ['emergency', 'urgent', 'help', 'police', 'fire']):
-                  return 'emergency'
-              return 'unknown'
+          def get_tidb_connection():
+              secrets_client = boto3.client('secretsmanager')
+              secret = secrets_client.get_secret_value(SecretId=os.environ['TIDB_SECRET_ARN'])
+              creds = json.loads(secret['SecretString'])
+              
+              return mysql.connector.connect(
+                  host=creds['endpoint'].split(':')[0],
+                  port=int(creds['endpoint'].split(':')[1]),
+                  user=creds['username'],
+                  password=creds['password'],
+                  database='test',
+                  ssl_disabled=True,
+                  autocommit=True
+              )
+          
+          def classify_visitor_intent_with_ai(message, historical_context=""):
+              bedrock = boto3.client('bedrock-runtime')
+              
+              prompt = f"Classify this doorbell visitor message into one category: delivery, friend, solicitor, service, emergency, or unknown.\n\nVisitor message: '{message}'\n{f'Previous visits: {historical_context}' if historical_context else ''}\n\nRespond with only the category name (lowercase)."
+              
+              try:
+                  response = bedrock.invoke_model(
+                      modelId='amazon.titan-text-express-v1',
+                      body=json.dumps({
+                          'inputText': prompt,
+                          'textGenerationConfig': {
+                              'maxTokenCount': 10,
+                              'temperature': 0.1
+                          }
+                      })
+                  )
+                  
+                  result = json.loads(response['body'].read())
+                  intent = result['results'][0]['outputText'].strip().lower()
+                  
+                  # Validate intent
+                  valid_intents = ['delivery', 'friend', 'solicitor', 'service', 'emergency', 'unknown']
+                  return intent if intent in valid_intents else 'unknown'
+                  
+              except Exception as e:
+                  print(f"Bedrock error: {e}")
+                  # Fallback to keyword classification
+                  message_lower = message.lower()
+                  if any(word in message_lower for word in ['delivery', 'package', 'mail']):
+                      return 'delivery'
+                  elif any(word in message_lower for word in ['friend', 'visit']):
+                      return 'friend'
+                  return 'unknown'
+          
+          def generate_ai_response(intent, visitor_name, message, has_history=False):
+              bedrock = boto3.client('bedrock-runtime')
+              
+              context = "returning visitor" if has_history else "first-time visitor"
+              
+              prompt = f"You are a friendly virtual doorman. Generate a brief, professional response for this {intent} visit.\n\nVisitor: {visitor_name}\nMessage: '{message}'\nContext: {context}\n\nRespond in 1-2 sentences, be helpful and welcoming."
+              
+              try:
+                  response = bedrock.invoke_model(
+                      modelId='amazon.titan-text-express-v1',
+                      body=json.dumps({
+                          'inputText': prompt,
+                          'textGenerationConfig': {
+                              'maxTokenCount': 100,
+                              'temperature': 0.3
+                          }
+                      })
+                  )
+                  
+                  result = json.loads(response['body'].read())
+                  return result['results'][0]['outputText'].strip()
+                  
+              except Exception as e:
+                  print(f"Bedrock error: {e}")
+                  # Fallback responses
+                  responses = {
+                      'delivery': "I'll notify the resident about your delivery.",
+                      'friend': "I'll let the resident know you're here.",
+                      'solicitor': "Thank you for visiting. The resident is not available for solicitations.",
+                      'service': "I'll inform the resident about your service visit.",
+                      'emergency': "This appears urgent. I'm notifying the resident immediately!",
+                      'unknown': "Thank you for your message. I'm notifying the resident."
+                  }
+                  return responses.get(intent, responses['unknown'])
+          
+          def search_historical_visits(conn, visitor_name, intent):
+              with conn.cursor() as cursor:
+                  # Search for similar visits in the last 30 days
+                  cursor.execute(
+                      "SELECT visitor_name, intent, message, created_at FROM visits WHERE (visitor_name LIKE %s OR intent = %s) AND created_at > %s ORDER BY created_at DESC LIMIT 5",
+                      (f"%{visitor_name}%", intent, datetime.now() - timedelta(days=30))
+                  )
+                  return cursor.fetchall()
           
           def handler(event, context):
               try:
@@ -366,26 +506,49 @@ Resources:
                   session_token = body['session_token']
                   message = body['message']
                   
-                  intent = classify_visitor_intent(message)
+                  conn = get_tidb_connection()
                   
-                  # Send SNS notification
+                  # Get visitor info from session
+                  with conn.cursor() as cursor:
+                      cursor.execute("SELECT visitor_name FROM visits WHERE session_token = %s", (session_token,))
+                      result = cursor.fetchone()
+                      visitor_name = result[0] if result else 'Anonymous'
+                  
+                  # Search for historical visits first
+                  historical_visits = search_historical_visits(conn, visitor_name, "")
+                  
+                  # Build context for AI
+                  history_context = ""
+                  if historical_visits:
+                      recent_intents = [visit[1] for visit in historical_visits[:3] if visit[1]]
+                      history_context = f"Recent visits: {', '.join(recent_intents)}"
+                  
+                  # AI-powered intent classification
+                  intent = classify_visitor_intent_with_ai(message, history_context)
+                  
+                  # AI-generated response
+                  response_text = generate_ai_response(intent, visitor_name, message, len(historical_visits) > 0)
+                  
+                  # Update visit record
+                  with conn.cursor() as cursor:
+                      cursor.execute(
+                          "UPDATE visits SET message = %s, intent = %s, response = %s, status = 'processed' WHERE session_token = %s",
+                          (message, intent, response_text, session_token)
+                      )
+                  
+                  conn.close()
+                  
+                  # Send SNS notification with context
                   sns = boto3.client('sns')
                   topic_arn = os.environ['SNS_TOPIC_ARN']
+                  
+                  history_context = f"\n\nRecent visits: {len(historical_visits)}" if historical_visits else "\n\nFirst-time visitor"
                   
                   sns.publish(
                       TopicArn=topic_arn,
                       Subject=f"🚪 Doorbell Visit - {intent.title()}",
-                      Message=f"Visitor Message: {message}\n\nClassified as: {intent.upper()}\nSession ID: {session_token}\n\nTime: {boto3.Session().region_name}"
+                      Message=f"Visitor: {visitor_name}\nMessage: {message}\n\nClassified as: {intent.upper()}\nSession ID: {session_token}{history_context}"
                   )
-                  
-                  responses = {
-                      'delivery': "I'll let the resident know about your delivery. Please wait a moment while I notify them.",
-                      'friend': "I'll notify the resident that you're here. Please wait while I get them.",
-                      'solicitor': "Thank you for visiting. The resident is not available for solicitations at this time.",
-                      'service': "I'll inform the resident about your service visit. Please wait a moment.",
-                      'emergency': "This appears urgent. I'm notifying the resident immediately!",
-                      'unknown': "Thank you for your message. I'm notifying the resident now."
-                  }
                   
                   return {
                       'statusCode': 200,
@@ -396,11 +559,13 @@ Resources:
                           'Access-Control-Allow-Methods': 'POST, OPTIONS'
                       },
                       'body': json.dumps({
-                          'response': responses.get(intent, responses['unknown']),
-                          'intent': intent
+                          'response': response_text,
+                          'intent': intent,
+                          'historical_visits': len(historical_visits) if historical_visits else 0
                       })
                   }
               except Exception as e:
+                  print(f"Error: {str(e)}")
                   return {
                       'statusCode': 500,
                       'headers': {
