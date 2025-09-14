@@ -1,6 +1,8 @@
 # TitaniumDoorman
 
-Hardware-less video doorbell for TiDB hackathon. Visitors scan QR code → interact with AI agent → resident gets notified.
+[![Lint CloudFormation Template](https://github.com/kevinl95/TitaniumDoorman/actions/workflows/main.yml/badge.svg)](https://github.com/kevinl95/TitaniumDoorman/actions/workflows/main.yml)
+
+Hardware-less doorbell for TiDB hackathon. Visitors scan QR code → interact with AI agent → resident gets notified.
 
 ## Quick Deploy
 
