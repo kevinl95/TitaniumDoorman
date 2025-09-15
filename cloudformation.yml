@@ -9,7 +9,7 @@ Parameters:
   NotificationEmail:
     Type: String
     Description: "Resident email address for notifications"
-    AllowedPattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+    AllowedPattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
     ConstraintDescription: "Must be a valid email address (e.g., user@example.com)"
 
 Resources:
