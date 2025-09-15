@@ -56,7 +56,7 @@ Resources:
                 Action:
                   - s3:PutObject
                   - s3:DeleteObject
-                Resource: !Sub '${VisitorWebsiteBucket}/*'
+                Resource: !Sub 'arn:aws:s3:::${VisitorWebsiteBucket}/*'
 
   WebsiteDeployerLambda:
     Type: AWS::Lambda::Function
