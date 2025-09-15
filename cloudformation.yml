@@ -33,7 +33,7 @@ Resources:
           - Effect: Allow
             Principal: "*"
             Action: s3:GetObject
-            Resource: !Sub "${VisitorWebsiteBucket}/*"
+            Resource: !Sub "arn:aws:s3:::${VisitorWebsiteBucket}/*"
 
   WebsiteDeployerRole:
     Type: AWS::IAM::Role
