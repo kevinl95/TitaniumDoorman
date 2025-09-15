@@ -14,6 +14,7 @@ Hardware-less doorbell for the [TiDB AgentX Hackathon](https://tidb-2025-hackath
 
 **Prerequisites:**
 - AWS Account with permissions for Lambda, API Gateway, SNS, S3, Secrets Manager, Bedrock
+- **Enable Bedrock model access**: Go to AWS Console → Bedrock → Model access → Request access for "Titan Text G1 - Express"
 - TiDB Serverless cluster (get free at [tidbcloud.com](https://tidbcloud.com))
 
 **Setup Steps:**

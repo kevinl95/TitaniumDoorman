@@ -301,7 +301,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - bedrock:InvokeModel
-                Resource: !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan-text-express-v1"
+                Resource: !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan-text-g1-express"
 
 
 
@@ -486,7 +486,7 @@ Resources:
               
               try:
                   response = bedrock.invoke_model(
-                      modelId='amazon.titan-text-express-v1',
+                      modelId='amazon.titan-text-g1-express',
                       body=json.dumps({
                           'inputText': prompt,
                           'textGenerationConfig': {
@@ -518,11 +518,11 @@ Resources:
               
               context = "returning visitor" if has_history else "first-time visitor"
               
-              prompt = f"You are a friendly virtual doorman. Generate a brief, professional response for this {intent} visit.\n\nVisitor: {visitor_name}\nMessage: '{message}'\nContext: {context}\n\nRespond in 1-2 sentences, be helpful and welcoming."
+              prompt = f"You are a virtual doorman speaking TO a visitor at the door. The visitor just told you: '{message}'. Respond directly to the visitor to acknowledge their message and let them know you're notifying the resident. Be brief and professional.\n\nVisit type: {intent}\nVisitor: {visitor_name}\nContext: {context}"
               
               try:
                   response = bedrock.invoke_model(
-                      modelId='amazon.titan-text-express-v1',
+                      modelId='amazon.titan-text-g1-express',
                       body=json.dumps({
                           'inputText': prompt,
                           'textGenerationConfig': {
@@ -539,12 +539,12 @@ Resources:
                   print(f"Bedrock error: {e}")
                   # Fallback responses
                   responses = {
-                      'delivery': "I'll notify the resident about your delivery.",
-                      'friend': "I'll let the resident know you're here.",
-                      'solicitor': "Thank you for visiting. The resident is not available for solicitations.",
-                      'service': "I'll inform the resident about your service visit.",
-                      'emergency': "This appears urgent. I'm notifying the resident immediately!",
-                      'unknown': "Thank you for your message. I'm notifying the resident."
+                      'delivery': "Thank you! I'll let the resident know about your delivery.",
+                      'friend': "Hello! I'll notify the resident that you're here.",
+                      'solicitor': "Thank you for stopping by. The resident isn't available for solicitations at this time.",
+                      'service': "I'll inform the resident about your service visit right away.",
+                      'emergency': "I understand this is urgent. I'm notifying the resident immediately!",
+                      'unknown': "Thank you for your message. I'm letting the resident know you're here."
                   }
                   return responses.get(intent, responses['unknown'])
           
