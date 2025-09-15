@@ -326,6 +326,7 @@ Resources:
           import boto3
           import uuid
           import pymysql
+          import ssl
           import os
           
           def get_tidb_connection():
@@ -342,12 +343,17 @@ Resources:
               
               user, password, host, port, database = match.groups()
               
+              ssl_ctx = ssl.create_default_context()
+              ssl_ctx.check_hostname = True
+              ssl_ctx.verify_mode = ssl.CERT_REQUIRED
+              
               return pymysql.connect(
                   host=host,
                   port=int(port),
                   user=user,
                   password=password,
                   database=database,
+                  ssl=ssl_ctx,
                   autocommit=True
               )
           
@@ -441,6 +447,7 @@ Resources:
           import json
           import boto3
           import pymysql
+          import ssl
           import os
           from datetime import datetime, timedelta
           
@@ -458,13 +465,17 @@ Resources:
               
               user, password, host, port, database = match.groups()
               
+              ssl_ctx = ssl.create_default_context()
+              ssl_ctx.check_hostname = True
+              ssl_ctx.verify_mode = ssl.CERT_REQUIRED
+              
               return pymysql.connect(
                   host=host,
                   port=int(port),
                   user=user,
                   password=password,
                   database=database,
-                  ssl={'ssl_disabled': False},
+                  ssl=ssl_ctx,
                   autocommit=True
               )
           
