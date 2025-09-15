@@ -6,9 +6,9 @@ Parameters:
     Type: String
     NoEcho: true
     Description: "TiDB connection string - copy from TiDB Cloud console (e.g., mysql://username.root:password@gateway01.us-east-1.prod.aws.tidbcloud.com:4000/test where 'test' is your database name)"
-  NotificationPhone:
+  NotificationEmail:
     Type: String
-    Description: "Resident phone number for SMS notifications (format: +12345678901 - include country code)"
+    Description: "Resident email address for notifications"
 
 Resources:
   ### S3 Static Website ###
@@ -269,8 +269,8 @@ Resources:
     Type: AWS::SNS::Subscription
     Properties:
       TopicArn: !Ref DoorbellTopic
-      Protocol: sms
-      Endpoint: !Ref NotificationPhone
+      Protocol: email
+      Endpoint: !Ref NotificationEmail
 
   ### IAM Role for Lambdas ###
   DoorbellLambdaRole:

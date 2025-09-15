@@ -21,7 +21,7 @@ Hardware-less doorbell for the [TiDB AgentX Hackathon](https://tidb-2025-hackath
 1. Create TiDB Serverless cluster at [tidbcloud.com](https://tidbcloud.com)
 2. Click "Connect" → "Generate Password" → copy the connection string, which is in the tba next to the `Parameters` at on the connection modal.
 3. Click "Deploy to AWS" button above
-4. Enter your TiDB connection string and notification phone number (+12345678901 - include country code)
+4. Enter your TiDB connection string and notification email address
 5. Deploy the stack (takes ~3 minutes)
 6. Open the "QRCodeUrl" from stack outputs
 7. Print the QR code page and post by your door!
