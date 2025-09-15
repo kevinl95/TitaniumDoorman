@@ -82,7 +82,7 @@ Resources:
                   html_content = f'''<!DOCTYPE html>
           <html>
           <head>
-              <title>🚪 Virtual Doorman</title>
+              <title>Virtual Doorman</title>
               <meta name="viewport" content="width=device-width, initial-scale=1">
               <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
               <style>
@@ -104,7 +104,7 @@ Resources:
                       <div class="col-md-6 col-lg-5">
                           <div class="chat-container">
                               <div class="chat-header p-4 text-center">
-                                  <h3 class="mb-1">🚪 Virtual Doorman</h3>
+                                  <h3 class="mb-1">Virtual Doorman</h3>
                                   <p class="mb-0 opacity-75">Hello! I'm here to help. How can I assist you today?</p>
                               </div>
                               <div class="p-4">
@@ -199,7 +199,7 @@ Resources:
               </style>
           </head>
           <body>
-              <h2>🚪 Titanium Doorman QR Code</h2>
+              <h2>Titanium Doorman QR Code</h2>
               <div class="qr-container">
                   <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={website_url}" alt="QR Code" />
               </div>
@@ -450,6 +450,7 @@ Resources:
                   user=user,
                   password=password,
                   database=database,
+                  ssl={'ssl_disabled': False},
                   autocommit=True
               )
           
@@ -577,7 +578,7 @@ Resources:
                   
                   sns.publish(
                       TopicArn=topic_arn,
-                      Subject=f"🚪 Doorbell Visit - {intent.title()}",
+                      Subject=f"Doorbell Visit - {intent.title()}",
                       Message=f"Visitor: {visitor_name}\nMessage: {message}\n\nClassified as: {intent.upper()}\nSession ID: {session_token}{history_context}"
                   )
                   
