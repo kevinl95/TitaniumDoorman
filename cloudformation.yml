@@ -212,12 +212,12 @@ Resources:
                           ContentType='text/html'
                       )
                   
-                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {{}})
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
               except Exception as e:
                   print(f'Error: {{str(e)}}')
                   import traceback
                   traceback.print_exc()
-                  cfnresponse.send(event, context, cfnresponse.FAILED, {{'Error': str(e)}})
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {'Error': str(e)})
                   raise
 
   DeployWebsite:
