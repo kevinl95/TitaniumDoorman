@@ -190,17 +190,23 @@ Resources:
                       website_url = f'http://{bucket}.s3-website-{boto3.Session().region_name}.amazonaws.com'
                       qr_html = f'''<!DOCTYPE html>
           <html>
-          <head><title>QR Code for Doorbell</title></head>
-          <body style="text-align:center; font-family:Arial;">
-              <h2>Titanium Doorman QR Code</h2>
-              <p>Scan this QR code or visit: <a href="{website_url}">{website_url}</a></p>
-              <div id="qr"></div>
-              <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-              <script>
-                  QRCode.toCanvas(document.getElementById('qr'), '{website_url}', function(error) {{
-                      if (error) console.error(error);
-                  }});
-              </script>
+          <head>
+              <title>QR Code for Doorbell</title>
+              <style>
+                  body {{ font-family: Arial, sans-serif; text-align: center; padding: 20px; }}
+                  .qr-container {{ margin: 20px auto; }}
+                  .url {{ word-break: break-all; margin: 20px; }}
+              </style>
+          </head>
+          <body>
+              <h2>🚪 Titanium Doorman QR Code</h2>
+              <div class="qr-container">
+                  <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={website_url}" alt="QR Code" />
+              </div>
+              <div class="url">
+                  <p>Scan this QR code or visit:</p>
+                  <p><a href="{website_url}">{website_url}</a></p>
+              </div>
               <p><small>Print this page and post by your door!</small></p>
           </body>
           </html>'''
