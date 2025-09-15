@@ -520,7 +520,7 @@ Resources:
               
               context = "returning visitor" if has_history else "first-time visitor"
               
-              prompt = f"A visitor at the door said: '{message}'. Write only the doorman's response to the visitor. Do not include any labels, prefixes, or formatting. Just the plain response text.\n\nVisit type: {intent}\nVisitor: {visitor_name}\nContext: {context}\n\nResponse:"
+              prompt = f"You are a doorman at the front door. A visitor said: '{message}'. You need to tell the visitor that you will notify the resident inside the building. Write only your response to the visitor. Do not include any labels or formatting.\n\nVisit type: {intent}\nVisitor: {visitor_name}\nContext: {context}\n\nDoorman response:"
               
               try:
                   response = bedrock.invoke_model(
