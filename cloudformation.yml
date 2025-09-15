@@ -520,7 +520,7 @@ Resources:
               
               context = "returning visitor" if has_history else "first-time visitor"
               
-              prompt = f"You are a virtual doorman. A visitor just said: '{message}'. Respond directly to them in 1-2 sentences. Acknowledge their message and let them know you're notifying the resident. Do not include labels like 'Bot:' or repeat their message.\n\nVisit type: {intent}\nVisitor: {visitor_name}\nContext: {context}"
+              prompt = f"A visitor at the door said: '{message}'. Write only the doorman's response to the visitor. Do not include any labels, prefixes, or formatting. Just the plain response text.\n\nVisit type: {intent}\nVisitor: {visitor_name}\nContext: {context}\n\nResponse:"
               
               try:
                   response = bedrock.invoke_model(
