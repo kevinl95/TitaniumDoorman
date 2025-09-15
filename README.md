@@ -10,7 +10,7 @@ Hardware-less doorbell for the [TiDB AgentX Hackathon](https://tidb-2025-hackath
 
 ## Quick Deploy
 
-[![Deploy to AWS](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?stackName=titanium-doorman&templateURL=https://raw.githubusercontent.com/kevinl95/TitaniumDoorman/main/cloudformation.yml)
+[![Deploy to AWS](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?stackName=titanium-doorman&templateURL=https://YOUR-BUCKET.s3.amazonaws.com/cloudformation.yml)
 
 **Prerequisites:**
 - AWS Account with permissions for Lambda, API Gateway, SNS, S3, Secrets Manager, Bedrock

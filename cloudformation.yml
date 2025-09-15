@@ -15,7 +15,7 @@ Resources:
   VisitorWebsiteBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "titanium-doorman-${AWS::AccountId}-${AWS::Region}"
+      BucketName: !Sub "${AWS::StackName}-${AWS::AccountId}-${AWS::Region}"
       WebsiteConfiguration:
         IndexDocument: index.html
       PublicAccessBlockConfiguration:
@@ -61,7 +61,7 @@ Resources:
   WebsiteDeployerLambda:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: doorbell-website-deployer
+      FunctionName: !Sub "${AWS::StackName}-website-deployer"
       Handler: index.handler
       Runtime: python3.11
       Timeout: 60
@@ -228,7 +228,7 @@ Resources:
   TiDBSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: doorbell-tidb-credentials
+      Name: !Sub "${AWS::StackName}-tidb-credentials"
       Description: "TiDB credentials for the Hardware-less Video Doorbell agent"
       SecretString:
         !Sub |
@@ -286,7 +286,7 @@ Resources:
   SessionInitLambda:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: doorbell-session-init
+      FunctionName: !Sub "${AWS::StackName}-session-init"
       Handler: index.handler
       Runtime: python3.11
       Timeout: 60
@@ -402,7 +402,7 @@ Resources:
   AgentOrchestratorLambda:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: doorbell-agent-orchestrator
+      FunctionName: !Sub "${AWS::StackName}-agent-orchestrator"
       Handler: index.handler
       Runtime: python3.11
       Timeout: 120
