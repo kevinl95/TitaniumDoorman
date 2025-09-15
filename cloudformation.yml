@@ -64,7 +64,7 @@ Resources:
       FunctionName: !Sub "${AWS::StackName}-website-deployer"
       Handler: index.handler
       Runtime: python3.11
-      Timeout: 60
+      Timeout: 300
       Role: !GetAtt WebsiteDeployerRole.Arn
       Code:
         ZipFile: |
@@ -214,8 +214,11 @@ Resources:
                   
                   cfnresponse.send(event, context, cfnresponse.SUCCESS, {{}})
               except Exception as e:
-                  print(f'Error: {{e}}')
-                  cfnresponse.send(event, context, cfnresponse.FAILED, {{}})
+                  print(f'Error: {{str(e)}}')
+                  import traceback
+                  traceback.print_exc()
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {{'Error': str(e)}})
+                  raise
 
   DeployWebsite:
     Type: AWS::CloudFormation::CustomResource
