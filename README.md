@@ -9,26 +9,32 @@ Hardware-less doorbell for the [TiDB AgentX Hackathon](https://tidb-2025-hackath
 [![Deploy to AWS](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?stackName=titanium-doorman&templateURL=https://raw.githubusercontent.com/YOUR_USERNAME/TitaniumDoorman/main/cloudformation.yml)
 
 **Prerequisites:**
-- AWS Account with permissions for Lambda, API Gateway, SNS, S3, Secrets Manager
+- AWS Account with permissions for Lambda, API Gateway, SNS, S3, Secrets Manager, Bedrock
 - TiDB Serverless cluster (get free at [tidbcloud.com](https://tidbcloud.com))
 
 **Setup Steps:**
 1. Click "Deploy to AWS" button above
-2. Enter your TiDB endpoint, username, password, and notification email  
+2. Enter your TiDB endpoint, username, password, and notification phone number (+1234567890)
 3. Deploy the stack (takes ~3 minutes)
 4. Open the "QRCodeUrl" from stack outputs
 5. Print the QR code page and post by your door!
 6. Done! Visitors can now scan and interact with your virtual doorman
 
+## How It Works
 
+**Multi-Step Agentic AI Workflow:**
 
-## Demo Flow
+1. **Data Ingestion** → Visitor messages stored in TiDB with session tracking
+2. **Historical Search** → Agent searches previous visits by name and intent patterns
+3. **AI Classification** → Amazon Bedrock (Titan Text Express) analyzes message context
+4. **AI Response Generation** → Personalized responses based on visitor history
+5. **External Actions** → SMS notifications sent to resident with visit context
 
-1. **Visitor scans QR code** → Opens visitor.html
-2. **Visitor types message** → "Hi, I have a package delivery"
-3. **AI classifies intent** → "delivery" 
-4. **Resident gets email** → "🚪 Doorbell Visit - Delivery"
-5. **Agent responds** → "I'll let the resident know about your delivery"
+**Intelligence Features:**
+- Recognizes returning visitors and personalizes responses
+- Learns from historical visit patterns stored in TiDB
+- Uses vector and full-text search for contextual awareness
+- Fallback classification ensures reliability
 
 ## Architecture
 
