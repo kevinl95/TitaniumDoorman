@@ -10,7 +10,7 @@ Hardware-less doorbell for the [TiDB AgentX Hackathon](https://tidb-2025-hackath
 
 ## Quick Deploy
 
-[![Deploy to AWS](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?stackName=titanium-doorman&templateURL=https://raw.githubusercontent.com/YOUR_USERNAME/TitaniumDoorman/main/cloudformation.yml)
+[![Deploy to AWS](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?stackName=titanium-doorman&templateURL=https://raw.githubusercontent.com/kevinl95/TitaniumDoorman/main/cloudformation.yml)
 
 **Prerequisites:**
 - AWS Account with permissions for Lambda, API Gateway, SNS, S3, Secrets Manager, Bedrock
@@ -20,7 +20,7 @@ Hardware-less doorbell for the [TiDB AgentX Hackathon](https://tidb-2025-hackath
 1. Create TiDB Serverless cluster at [tidbcloud.com](https://tidbcloud.com)
 2. Click "Connect" → "Generate Password" → copy the connection string, which is in the tba next to the `Parameters` at on the connection modal.
 3. Click "Deploy to AWS" button above
-4. Enter your TiDB connection string and notification phone number (+1234567890)
+4. Enter your TiDB connection string and notification phone number (+12345678901 - include country code)
 5. Deploy the stack (takes ~3 minutes)
 6. Open the "QRCodeUrl" from stack outputs
 7. Print the QR code page and post by your door!
