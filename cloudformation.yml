@@ -303,7 +303,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - bedrock:InvokeModel
-                Resource: !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan-text-g1-express"
+                Resource: !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan-text-express-v1"
 
 
 
@@ -488,7 +488,7 @@ Resources:
               
               try:
                   response = bedrock.invoke_model(
-                      modelId='amazon.titan-text-g1-express',
+                      modelId='amazon.titan-text-express-v1',
                       body=json.dumps({
                           'inputText': prompt,
                           'textGenerationConfig': {
@@ -524,7 +524,7 @@ Resources:
               
               try:
                   response = bedrock.invoke_model(
-                      modelId='amazon.titan-text-g1-express',
+                      modelId='amazon.titan-text-express-v1',
                       body=json.dumps({
                           'inputText': prompt,
                           'textGenerationConfig': {
