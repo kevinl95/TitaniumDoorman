@@ -12,9 +12,9 @@ Parameters:
     Type: String
     NoEcho: true
     Description: "TiDB password"
-  NotificationEmail:
+  NotificationPhone:
     Type: String
-    Description: "Resident email address for notifications"
+    Description: "Resident phone number for SMS notifications (format: +1234567890)"
 
 Resources:
   ### S3 Static Website ###
@@ -241,8 +241,8 @@ Resources:
     Type: AWS::SNS::Subscription
     Properties:
       TopicArn: !Ref DoorbellTopic
-      Protocol: email
-      Endpoint: !Ref NotificationEmail
+      Protocol: sms
+      Endpoint: !Ref NotificationPhone
 
   ### IAM Role for Lambdas ###
   DoorbellLambdaRole:
@@ -284,7 +284,7 @@ Resources:
       FunctionName: doorbell-session-init
       Handler: index.handler
       Runtime: python3.11
-      Timeout: 30
+      Timeout: 60
       Role: !GetAtt DoorbellLambdaRole.Arn
       Environment:
         Variables:
@@ -391,7 +391,7 @@ Resources:
       FunctionName: doorbell-agent-orchestrator
       Handler: index.handler
       Runtime: python3.11
-      Timeout: 60
+      Timeout: 120
       Role: !GetAtt DoorbellLambdaRole.Arn
       Environment:
         Variables:
