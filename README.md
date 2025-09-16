@@ -29,24 +29,30 @@ Hardware-less doorbell for the [TiDB AgentX Hackathon](https://tidb-2025-hackath
 
 ## How It Works
 
+<p align="center">
+  <img src="assets/architecture-diagram.png" alt="TitaniumDoorman Architecture" width="800">
+</p>
+
 **Multi-Step Agentic AI Workflow:**
 
 1. **Data Ingestion** → Visitor messages stored in TiDB with session tracking
-2. **Historical Search** → Agent searches previous visits by name and intent patterns
+2. **Historical Context** → Agent checks previous visits for returning visitor detection  
 3. **AI Classification** → Amazon Bedrock (Titan Text Express) analyzes message context
 4. **AI Response Generation** → Personalized responses based on visitor history
-5. **External Actions** → SMS notifications sent to resident with visit context
+5. **External Actions** → Email notifications sent to resident with visit context
 
 **Intelligence Features:**
 - Recognizes returning visitors and personalizes responses
-- Learns from historical visit patterns stored in TiDB
-- Uses vector and full-text search for contextual awareness
+- Tracks historical visit patterns in TiDB
+- Provides visit context to residents via email
 - Fallback classification ensures reliability
 
 ## Architecture
 
+- **S3 Static Website** - Visitor interface and QR code generation
 - **API Gateway** - Public endpoints for visitor interactions
 - **Lambda Functions** - Session management and AI agent orchestration  
-- **TiDB Serverless** - Stores visits, transcripts with vector search
-- **AWS Bedrock** - LLM for visitor intent classification
-- **SNS** - Resident notifications
+- **TiDB Serverless** - Stores visits and transcripts with historical search
+- **AWS Bedrock** - AI for visitor intent classification and response generation
+- **SNS** - Email notifications to residents
+- **Secrets Manager** - Secure TiDB credential storage
